@@ -1,0 +1,89 @@
+# ==========================================
+# Configuración GitIgnore - Sistema AZPRO
+# ==========================================
+
+# Archivos de Entorno y Claves Privadas (¡NUNCA SUBIR A GITHUB!)
+.env
+.env.*
+!.env.example
+/storage/*.key
+/auth.json
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+/database/*.sqlite
+/database/*.sqlite-journal
+
+# Dependencias de PHP / Laravel (Composer)
+/vendor/
+
+# Dependencias de JavaScript / Node.js (NPM)
+/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Archivos de Compilación de Frontend (Vite / Mix)
+/public/build/
+/public/hot/
+
+# Enlace Simbólico e Archivos Almacenados en Storage
+/public/storage
+/storage/app/public/*
+!/storage/app/public/.gitignore
+
+# Cachés y Logs del Framework Laravel
+/storage/framework/cache/data/*
+!/storage/framework/cache/data/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/pail/
+*.log
+
+# Caché del Servidor de Arranque (Bootstrap Cache)
+/bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore
+
+# Cachés y Pruebas Unitarias (PHPUnit / Pest)
+.phpunit.result.cache
+/.phpunit.cache
+
+# Archivos de Configuración del Editor / IDE
+/.idea/
+/.vscode/
+/.fleet/
+/.nova/
+/.zed/
+.phpactor.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# Archivos del Sistema Operativo (Windows & macOS)
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Entornos Virtuales y Despliegues Locales
+Homestead.json
+Homestead.yaml
+
+# Archivos Temporales e Herramientas IA / Workspace
+/.agents/
+/.gemini/
+/scratch/

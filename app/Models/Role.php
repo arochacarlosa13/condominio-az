@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class Role extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'nombre',
+        'slug',
+        'descripcion',
+        'status',
+    ];
+
+    protected $casts = [
+        'status' => 'boolean',
+    ];
+
+    public function permissions()
+    {
+        return $this->belongsToMany(Permission::class, 'permission_role');
+    }
+
+    public function menus()
+    {
+        return $this->belongsToMany(Menu::class, 'menu_role');
+    }
+
+    public function users()
+    {
+        return $this->hasMany(User::class);
+    }
+
+    public function hasPermission($permissionName): bool
+    {
+        return $this->permissions->contains('nombre', $permissionName);
+    }
+}

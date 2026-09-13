@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+:root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+}
+
+html, body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* Touch feedback for buttons & cards */
+.v-btn:active, .clickable-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease-out;
+}
+
+/* Mobile Safe Areas */
+.pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+}
+.pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Responsive Table Wrapper with Smooth Momentum Scroll */
+.table-responsive-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
+.table-responsive-container::-webkit-scrollbar {
+    height: 4px;
+}
+.table-responsive-container::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 4px;
+}
+
+/* Prevent auto-zoom on iOS when tapping input fields */
+@media screen and (max-width: 768px) {
+    input, select, textarea, .v-field input {
+        font-size: 16px !important;
+    }
+}
+
+/* Glassmorphism Navigation */
+.glass-nav {
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #64748B;
+}
+
+/* ==========================================================================
+   THEME ADAPTATION FOR TAILWIND UTILITIES & VUETIFY IN DARK MODE
+   ========================================================================== */
+
+/* 1. Transform white & light slate backgrounds into Dark Slate #1E293B */
+.v-theme--customDarkTheme .bg-white,
+.v-theme--customDarkTheme .bg-slate-50,
+.v-theme--customDarkTheme .bg-slate-100 {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+}
+
+/* 2. High contrast for dark text classes */
+.v-theme--customDarkTheme .text-slate-900,
+.v-theme--customDarkTheme .text-slate-800,
+.v-theme--customDarkTheme .text-slate-700 {
+    color: #F8FAFC !important;
+}
+
+.v-theme--customDarkTheme .text-slate-600,
+.v-theme--customDarkTheme .text-slate-500 {
+    color: #CBD5E1 !important;
+}
+
+/* 3. Borders in Dark Mode */
+.v-theme--customDarkTheme .border-slate-100,
+.v-theme--customDarkTheme .border-slate-200,
+.v-theme--customDarkTheme .border-slate-300 {
+    border-color: #334155 !important;
+}
+
+/* 4. Cards in Dark Mode */
+.v-theme--customDarkTheme .v-card:not(.bg-gradient-to-r):not(.bg-gradient-to-br):not(.bg-gradient-to-tr) {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+    border-color: #334155 !important;
+}
+
+.v-theme--customDarkTheme .v-card-title,
+.v-theme--customDarkTheme .v-card-header,
+.v-theme--customDarkTheme .v-list-item-title {
+    color: #F8FAFC !important;
+}
+
+/* 5. Tables and Table Headers in Dark Mode */
+.v-theme--customDarkTheme table thead tr,
+.v-theme--customDarkTheme table thead th,
+.v-theme--customDarkTheme .v-data-table-header th {
+    background-color: #0F172A !important;
+    color: #60A5FA !important; /* Azul cielo brillante para destacar títulos de tablas */
+    font-weight: 700 !important;
+}
+
+.v-theme--customDarkTheme table tbody tr {
+    background-color: #1E293B !important;
+    color: #F8FAFC !important;
+    border-bottom-color: #334155 !important;
+}
+
+.v-theme--customDarkTheme table tbody tr:hover {
+    background-color: #334155 !important;
+}
+
+/* 6. Form Inputs & Selects in Dark Mode */
+.v-theme--customDarkTheme .v-field {
+    background-color: #0F172A !important;
+    color: #F8FAFC !important;
+}
+
+.v-theme--customDarkTheme .v-field__input {
+    color: #F8FAFC !important;
+}
+
+.v-theme--customDarkTheme .v-label {
+    color: #94A3B8 !important;
+}
+
+.v-theme--customDarkTheme .v-navigation-drawer {
+    background-color: #0F172A !important;
+    border-color: #1E293B !important;
+}
+
+.v-theme--customDarkTheme .v-app-bar {
+    background-color: #0F172A !important;
+    border-color: #1E293B !important;
+}
+
+/* SweetAlert2 z-index fix for Vuetify 3 Dialogs & Overlays */
+.swal2-container {
+    z-index: 99999 !important;
+}
+
