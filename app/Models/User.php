@@ -23,6 +23,9 @@ class User extends Authenticatable
         'telefono',
         'cedula',
         'activo',
+        'dos_factores_activo',
+        'two_factor_code',
+        'two_factor_expires_at',
         'intentos_fallidos',
         'bloqueado_hasta',
     ];
@@ -30,12 +33,15 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_code',
     ];
 
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'activo' => 'boolean',
+        'dos_factores_activo' => 'boolean',
+        'two_factor_expires_at' => 'datetime',
         'bloqueado_hasta' => 'datetime',
         'intentos_fallidos' => 'integer',
     ];

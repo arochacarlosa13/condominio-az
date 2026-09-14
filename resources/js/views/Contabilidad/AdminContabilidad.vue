@@ -29,6 +29,12 @@
     <!-- Accounting Tabs -->
     <v-tabs v-model="tab" color="primary" class="mb-6 bg-white border border-slate-100 rounded-lg">
       <v-tab value="recibos" prepend-icon="mdi-shield-check">Recibos y Certificación Mensual</v-tab>
+      <v-tab value="flujo_caja" prepend-icon="mdi-cash-sync" class="font-weight-bold">
+        Flujo de Caja en Vivo
+        <v-chip size="x-small" color="emerald-darken-1" variant="flat" class="ml-1 font-weight-bold">
+          Tesorería
+        </v-chip>
+      </v-tab>
       <v-tab value="conceptos" prepend-icon="mdi-format-list-numbered">Catálogo de Gastos</v-tab>
       <v-tab value="mayor" prepend-icon="mdi-book-open-page-variant">Libro Mayor</v-tab>
       <v-tab value="resultados" prepend-icon="mdi-chart-areaspline">Estado de Resultados (P&G)</v-tab>
@@ -242,6 +248,11 @@
             :search="pPeriodos.search.value"
           />
         </v-card>
+      </v-window-item>
+
+      <!-- Flujo de Caja en Vivo Tab -->
+      <v-window-item value="flujo_caja">
+        <FlujoCajaTab />
       </v-window-item>
 
       <!-- 1. Dynamic Concepts Catalog Tab -->
@@ -1452,6 +1463,7 @@ import DataTableFooter from '../../components/DataTableFooter.vue';
 import SortHeader from '../../components/SortHeader.vue';
 import CuotaExtraordinariaModal from './CuotaExtraordinariaModal.vue';
 import ReciboMesModal from './ReciboMesModal.vue';
+import FlujoCajaTab from './FlujoCajaTab.vue';
 
 const authStore = useAuthStore();
 const tab = ref('recibos');

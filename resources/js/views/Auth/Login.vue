@@ -53,15 +53,18 @@
             <div class="mb-8">
               <div class="d-flex align-center gap-3 mb-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-blue-500 to-indigo-500 d-flex align-center justify-center shadow-md shadow-blue-500/30">
-                  <v-icon icon="mdi-office-building-cog" size="22" color="white" />
+                  <v-icon :icon="step === '2fa' ? 'mdi-shield-key' : 'mdi-office-building-cog'" size="22" color="white" />
                 </div>
                 <span :class="['text-h6 font-weight-black', isDark ? 'text-white' : 'text-slate-900']">Sistema <span class="text-blue-600">AZPRO</span></span>
               </div>
               <h1 :class="['text-h4 font-weight-black tracking-tight mb-1', isDark ? 'text-white' : 'text-slate-900']">
-                ¡Bienvenido de nuevo!
+                {{ step === '2fa' ? 'Código de Seguridad (2FA)' : '¡Bienvenido de nuevo!' }}
               </h1>
               <p :class="['text-body-2', isDark ? 'text-slate-300' : 'text-slate-600']">
-                Ingresa tus credenciales para acceder a la administración del condominio.
+                {{ step === '2fa' 
+                    ? `Hemos enviado un código de 6 dígitos a ${emailMasked}. Ingrésalo para verificar tu identidad.` 
+                    : 'Ingresa tus credenciales para acceder a la administración del condominio.' 
+                }}
               </p>
             </div>
 
@@ -78,8 +81,8 @@
               {{ errorMessage }}
             </v-alert>
 
-            <!-- Form -->
-            <v-form ref="formRef" @submit.prevent="handleLogin">
+            <!-- Form: Credenciales Primarias -->
+            <v-form v-if="step === 'credentials'" ref="formRef" @submit.prevent="handleLogin">
               <div class="mb-4">
                 <label :class="['text-caption font-weight-bold mb-1 d-block', isDark ? 'text-slate-200' : 'text-slate-700']">Correo Electrónico</label>
                 <v-text-field
@@ -138,6 +141,54 @@
                 prepend-icon="mdi-login"
               >
                 Ingresar al Sistema
+              </v-btn>
+            </v-form>
+
+            <!-- Form: Verificación 2FA -->
+            <v-form v-else @submit.prevent="handleVerify2FA">
+              <div class="mb-6 text-center">
+                <label :class="['text-caption font-weight-bold mb-3 d-block text-uppercase letter-spacing-1', isDark ? 'text-slate-200' : 'text-slate-700']">
+                  Código de Verificación OTP
+                </label>
+                <v-text-field
+                  v-model="otpCode"
+                  placeholder="123456"
+                  maxlength="6"
+                  color="primary"
+                  variant="outlined"
+                  density="comfortable"
+                  class="text-center font-mono font-weight-bold text-h5 rounded-xl"
+                  prepend-inner-icon="mdi-shield-lock"
+                  autofocus
+                  :rules="[v => !!v || 'Ingrese el código', v => (v && v.length === 6) || 'Debe ser de 6 dígitos']"
+                />
+                <span class="text-caption text-slate-500">
+                  El código es válido durante 10 minutos. Revise su bandeja de entrada o spam.
+                </span>
+              </div>
+
+              <v-btn
+                type="submit"
+                block
+                size="x-large"
+                color="success"
+                variant="flat"
+                class="font-weight-black text-none rounded-xl py-3 shadow-xl text-white mb-3"
+                :loading="loading"
+                prepend-icon="mdi-check-decagram"
+              >
+                Validar y Entrar
+              </v-btn>
+
+              <v-btn
+                block
+                variant="tonal"
+                color="secondary"
+                class="text-none rounded-xl"
+                @click="step = 'credentials'"
+              >
+                <v-icon icon="mdi-arrow-left" size="18" class="mr-1" />
+                Volver a Ingresar Credenciales
               </v-btn>
             </v-form>
           </div>
@@ -232,6 +283,11 @@ const remember = ref(false);
 const loading = ref(false);
 const errorMessage = ref('');
 
+const step = ref('credentials'); // 'credentials' | '2fa'
+const otpCode = ref('');
+const tempToken = ref('');
+const emailMasked = ref('');
+
 const authStore = useAuthStore();
 const router = useRouter();
 const { isDark, toggleTheme } = useTheme();
@@ -240,11 +296,37 @@ const handleLogin = async () => {
     errorMessage.value = '';
     loading.value = true;
     try {
-        const data = await authStore.login(email.value, password.value, remember.value);
+        const response = await authStore.login(email.value, password.value, remember.value);
+        if (response && response.requires_2fa) {
+            tempToken.value = response.data?.temp_token || '';
+            emailMasked.value = response.data?.email_masked || email.value;
+            step.value = '2fa';
+            otpCode.value = '';
+            authStore.notify('Se ha enviado el código de verificación a su correo', 'info');
+            return;
+        }
         authStore.notify('Bienvenido al sistema', 'success');
-        router.push(data.redirect_to || '/dashboard/admin');
+        router.push(response.redirect_to || '/dashboard/admin');
     } catch (error) {
         errorMessage.value = error.response?.data?.message || error.message || 'Error al iniciar sesión';
+    } finally {
+        loading.value = false;
+    }
+};
+
+const handleVerify2FA = async () => {
+    if (!otpCode.value || otpCode.value.length !== 6) {
+        errorMessage.value = 'Por favor ingrese el código completo de 6 dígitos.';
+        return;
+    }
+    errorMessage.value = '';
+    loading.value = true;
+    try {
+        const data = await authStore.verificar2FA(email.value, otpCode.value, tempToken.value, remember.value);
+        authStore.notify('Verificación completada. Bienvenido al sistema', 'success');
+        router.push(data.redirect_to || '/dashboard/admin');
+    } catch (error) {
+        errorMessage.value = error.response?.data?.message || error.message || 'Código de verificación incorrecto o expirado.';
     } finally {
         loading.value = false;
     }

@@ -6,9 +6,21 @@
         <h1 class="text-h5 font-weight-bold text-slate-900">Módulo de Notificaciones</h1>
         <p class="text-caption text-slate-500">Historial de despachos automáticos vía WhatsApp y Email con plantillas predefinidas</p>
       </div>
-      <v-btn color="success" prepend-icon="mdi-whatsapp" :loading="sending" @click="enviarCobrosMasivos">
-        Enviar Recordatorio Masivo a Deudores
-      </v-btn>
+      <div class="d-flex align-center">
+        <v-btn
+          color="primary"
+          variant="flat"
+          class="font-weight-bold mr-3"
+          prepend-icon="mdi-clock-alert-outline"
+          :loading="sendingPreventiva"
+          @click="ejecutarCobranzaPreventiva"
+        >
+          Cobranza Preventiva (3 Días / Hoy)
+        </v-btn>
+        <v-btn color="success" prepend-icon="mdi-whatsapp" :loading="sending" @click="enviarCobrosMasivos">
+          Recordatorio Manual
+        </v-btn>
+      </div>
     </div>
 
     <!-- Notification Templates Showcase Cards -->
@@ -124,6 +136,7 @@ import DataTableFooter from '../../components/DataTableFooter.vue';
 const authStore = useAuthStore();
 const historyList = ref([]);
 const sending = ref(false);
+const sendingPreventiva = ref(false);
 
 const {
     search,
@@ -164,6 +177,19 @@ const enviarCobrosMasivos = async () => {
         authStore.notify('Error al enviar notificaciones masivas', 'error');
     } finally {
         sending.value = false;
+    }
+};
+
+const ejecutarCobranzaPreventiva = async () => {
+    sendingPreventiva.value = true;
+    try {
+        const { data } = await axios.post('/notificaciones/cobranza-preventiva');
+        authStore.notify(data.message || 'Ciclo de cobranza preventiva completado con éxito');
+        fetchHistory();
+    } catch (e) {
+        authStore.notify('Error al ejecutar ciclo de cobranza preventiva', 'error');
+    } finally {
+        sendingPreventiva.value = false;
     }
 };
 

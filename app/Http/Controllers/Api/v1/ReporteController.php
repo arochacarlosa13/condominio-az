@@ -106,6 +106,44 @@ class ReporteController extends BaseController
     }
 
     /**
+     * Vista pública de Verificación y Certificación Criptográfica de Recibo de Cobro (Escanear QR SHA-256)
+     */
+    public function certificacionRecibo(\Illuminate\Http\Request $request, $invoice)
+    {
+        if ($invoice instanceof Invoice) {
+            $invoiceModel = $invoice;
+        } else {
+            $invoiceModel = Invoice::withoutGlobalScopes()->findOrFail($invoice);
+        }
+
+        $invoiceModel->load([
+            'apartamento' => fn($q) => $q->withoutGlobalScopes()->with('propietarios'),
+            'condominio' => fn($q) => $q->withoutGlobalScopes(),
+        ]);
+
+        $doc_numero = $invoiceModel->numero_factura ?: "RI-PENDIENTE-{$invoiceModel->id}";
+        $expectedToken = substr(hash('sha256', "AZPRO_INVOICE_{$invoiceModel->id}_{$doc_numero}_{$invoiceModel->monto_total}_{$invoiceModel->created_at}_{$invoiceModel->condominio_id}"), 0, 24);
+        $providedToken = $request->query('token');
+
+        $esValido = (!empty($providedToken) && hash_equals($expectedToken, $providedToken));
+
+        $condominio = $invoiceModel->condominio;
+        $apartamento = $invoiceModel->apartamento;
+        $propietario = $apartamento?->propietarios?->first();
+        $hashSha256 = hash('sha256', "AZPRO_INVOICE_{$invoiceModel->id}_{$doc_numero}_{$invoiceModel->monto_total}_{$invoiceModel->created_at}_{$invoiceModel->condominio_id}");
+
+        return view('certificacion_recibo', [
+            'invoice' => $invoiceModel,
+            'condominio' => $condominio,
+            'apartamento' => $apartamento,
+            'propietario' => $propietario,
+            'doc_numero' => $doc_numero,
+            'hashSha256' => $hashSha256,
+            'esValido' => $esValido,
+        ]);
+    }
+
+    /**
      * Generación de Recibo en PDF por Factura directa
      */
     public function reciboInvoicePdf($invoice)
@@ -179,6 +217,18 @@ class ReporteController extends BaseController
             ->where('activo', true)
             ->get();
 
+        // Generar Sello Criptográfico SHA-256 y Código QR de Validación (Fase 3.1)
+        $hashSha256 = hash('sha256', "AZPRO_INVOICE_{$invoiceModel->id}_{$doc_numero}_{$invoiceModel->monto_total}_{$invoiceModel->created_at}_{$invoiceModel->condominio_id}");
+        $urlCertificacion = url("/validar-recibo/{$invoiceModel->id}?token=" . substr($hashSha256, 0, 24));
+        $qrCodeBase64 = null;
+        try {
+            $qrApiUrl = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" . urlencode($urlCertificacion);
+            $qrContent = @file_get_contents($qrApiUrl);
+            if ($qrContent) {
+                $qrCodeBase64 = 'data:image/png;base64,' . base64_encode($qrContent);
+            }
+        } catch (\Throwable $e) {}
+
         $html = view('pdf.recibo', [
             'invoice' => $invoiceModel,
             'payment' => $payment,
@@ -193,7 +243,10 @@ class ReporteController extends BaseController
             'fondo_mes_monto' => $fondo_mes_monto,
             'fondo_mes_alicuota' => $fondo_mes_alicuota,
             'es_borrador' => $es_borrador,
-            'cuentasBancarias' => $cuentasBancarias
+            'cuentasBancarias' => $cuentasBancarias,
+            'hashSha256' => $hashSha256,
+            'urlCertificacion' => $urlCertificacion,
+            'qrCodeBase64' => $qrCodeBase64,
         ])->render();
 
         $pdf = Pdf::setOptions(['isRemoteEnabled' => true, 'isHtml5ParserEnabled' => true])->loadHTML($html)->setPaper('letter', 'portrait');

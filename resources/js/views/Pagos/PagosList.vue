@@ -31,6 +31,17 @@
             {{ creditNotesDisponiblesCount }} Disponibles
           </v-chip>
         </v-tab>
+        <v-tab
+          v-if="!authStore.isPropietario"
+          value="conciliacion"
+          prepend-icon="mdi-bank-check"
+          class="font-weight-bold"
+        >
+          Conciliación Bancaria Inteligente
+          <v-chip size="x-small" color="emerald-darken-1" variant="flat" class="ml-2 font-weight-bold">
+            Auto-Matching
+          </v-chip>
+        </v-tab>
       </v-tabs>
     </v-card>
 
@@ -357,6 +368,11 @@
             :search="pNotas.search.value"
           />
         </v-card>
+      </v-window-item>
+
+      <!-- ===== Tab 3: CONCILIACIÓN BANCARIA INTELIGENTE ===== -->
+      <v-window-item value="conciliacion" v-if="!authStore.isPropietario">
+        <ConciliacionBancariaTab @pagos-actualizados="fetchPayments" />
       </v-window-item>
     </v-window>
 
@@ -1682,6 +1698,7 @@ import { usePagination } from '../../composables/usePagination';
 import DataTableHeader from '../../components/DataTableHeader.vue';
 import DataTableFooter from '../../components/DataTableFooter.vue';
 import SortHeader from '../../components/SortHeader.vue';
+import ConciliacionBancariaTab from './ConciliacionBancariaTab.vue';
 
 const authStore = useAuthStore();
 const activeTab = ref('pagos');

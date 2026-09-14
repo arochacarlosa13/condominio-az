@@ -268,6 +268,9 @@ export const useAuthStore = defineStore('auth', {
 
         async login(email, password, remember = false) {
             const { data } = await axios.post('/login', { email, password });
+            if (data.requires_2fa) {
+                return data;
+            }
             if (data.success) {
                 this.setToken(data.data.token, remember);
                 this.setUser(data.data.user, remember);
@@ -278,6 +281,20 @@ export const useAuthStore = defineStore('auth', {
                 return data.data;
             }
             throw new Error(data.message || 'Error en autenticación');
+        },
+
+        async verificar2FA(email, code, temp_token, remember = false) {
+            const { data } = await axios.post('/verificar-2fa', { email, code, temp_token });
+            if (data.success) {
+                this.setToken(data.data.token, remember);
+                this.setUser(data.data.user, remember);
+                if (data.data.tasa_cambio_central) {
+                    this.tasaCambioCentral = parseFloat(data.data.tasa_cambio_central);
+                    localStorage.setItem('tasaCambioCentral', this.tasaCambioCentral);
+                }
+                return data.data;
+            }
+            throw new Error(data.message || 'Código de seguridad incorrecto');
         },
 
         async logout() {

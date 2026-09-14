@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\v1\CondominioAlicuotaController;
 use App\Http\Controllers\Api\v1\CondominioCuentaController;
 use App\Http\Controllers\Api\v1\UserController;
 use App\Http\Controllers\Api\v1\LandingController;
+use App\Http\Controllers\Api\v1\PollController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,6 +38,7 @@ use App\Http\Controllers\Api\v1\LandingController;
 Route::prefix('v1')->group(function () {
     // Autenticación pública, recuperación y contenido público de Landing Page
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/verificar-2fa', [AuthController::class, 'verificar2FA']);
     Route::post('/recuperar-password', [AuthController::class, 'forgotPassword']);
     Route::get('/landing-content', [LandingController::class, 'index']);
     Route::get('/planes', [\App\Http\Controllers\Api\v1\PlanController::class, 'index']);
@@ -49,9 +51,10 @@ Route::prefix('v1')->group(function () {
         // Landing Page PWA - Edición Master
         Route::put('/landing-content', [LandingController::class, 'update']);
         
-        // Usuario autenticado y cierre de sesión
+        // Usuario autenticado, cierre de sesión y seguridad (2FA)
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/auth/toggle-2fa', [AuthController::class, 'toggle2FA']);
 
         // Dashboards por rol
         Route::get('/dashboard/super-admin', [DashboardController::class, 'superAdmin']);
@@ -123,15 +126,18 @@ Route::prefix('v1')->group(function () {
         Route::put('/payments/{payment}/aprobar', [PaymentController::class, 'aprobar']);
         Route::put('/payments/{payment}/rechazar', [PaymentController::class, 'rechazar']);
         Route::post('/payments/{payment}/reenviar-email', [PaymentController::class, 'reenviarEmailRecibo']);
+        Route::post('/conciliacion/analizar', [PaymentController::class, 'analizarExtracto']);
+        Route::post('/conciliacion/aprobar-lote', [PaymentController::class, 'aprobarLoteConciliado']);
 
         // Cuentas por Pagar, Conceptos de Gasto y Gastos del Condominio
         Route::apiResource('expenses', ExpenseController::class);
         Route::apiResource('conceptos-gasto', ConceptoGastoController::class);
 
-        // Contabilidad Interna del Condominio (Libro Mayor, P&G, Cobranza)
+        // Contabilidad Interna del Condominio (Libro Mayor, P&G, Cobranza, Flujo de Caja)
         Route::get('/contabilidad/libro-mayor', [ContabilidadController::class, 'libroMayor']);
         Route::get('/contabilidad/estado-resultados', [ContabilidadController::class, 'estadoResultados']);
         Route::get('/contabilidad/cuentas-por-cobrar', [ContabilidadController::class, 'cuentasPorCobrar']);
+        Route::get('/contabilidad/flujo-caja', [ContabilidadController::class, 'flujoCaja']);
 
         // Control de Visitantes
         Route::apiResource('visitantes', VisitanteController::class);
@@ -151,12 +157,21 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('incidencias', IncidenciaController::class);
         Route::apiResource('comunicados', ComunicadoController::class);
 
-        // Notificaciones masivas (WhatsApp y Email)
+        // Notificaciones masivas y Cobranza Preventiva (Fase 4.1)
         Route::get('/notificaciones/historial', [NotificacionController::class, 'index']);
         Route::post('/notificaciones/recordatorios-cobro', [NotificacionController::class, 'enviarRecordatorioCobro']);
+        Route::post('/notificaciones/cobranza-preventiva', [NotificacionController::class, 'ejecutarCobranzaPreventiva']);
 
-        // Auditoría general
+        // Auditoría general y Copias de Seguridad (Fase 3.2)
         Route::get('/auditoria', [AuditLogController::class, 'index']);
+        Route::get('/auditoria/backup/descargar', [AuditLogController::class, 'descargarBackup']);
+
+        // Módulo de Asambleas y Votaciones Ponderadas por Alícuota (Fase 4.2)
+        Route::get('/asambleas', [PollController::class, 'index']);
+        Route::post('/asambleas', [PollController::class, 'store']);
+        Route::get('/asambleas/{id}', [PollController::class, 'show']);
+        Route::post('/asambleas/{id}/votar', [PollController::class, 'votar']);
+        Route::post('/asambleas/{id}/finalizar', [PollController::class, 'finalizar']);
     });
 
     // Reportes en PDF (accesibles para descarga directa en nueva pestaña del navegador)

@@ -22,6 +22,7 @@ class Expense extends Model
         'estado_pago',
         'proveedor',
         'referencia_pago',
+        'cuenta_bancaria_id',
         'comprobante_path',
         'registrado_por',
     ];
@@ -41,6 +42,11 @@ class Expense extends Model
     public function condominio()
     {
         return $this->belongsTo(Condominio::class);
+    }
+
+    public function cuentaBancaria()
+    {
+        return $this->belongsTo(CondominioCuentaBancaria::class, 'cuenta_bancaria_id');
     }
 
     public function registradoPor()

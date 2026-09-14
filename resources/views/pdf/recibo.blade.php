@@ -708,6 +708,32 @@
         <strong>AVISO LEGAL Y CONDICIONES DE PAGO:</strong> Vencimiento a los cinco (5) días continuos posteriores a su fecha de emisión. @if(!empty($condominio->mantener_tasa_emision_5_dias)) Durante los primeros cinco (5) días de emisión rige la tasa oficial de emisión fijada. A partir del sexto (6to) día continuo, el monto se recalcula automáticamente a la tasa oficial del día de pago suministrada por el Banco Central de Venezuela (BCV) de conformidad con los artículos 8 y 128 del Convenio Cambiario N° 1. @else Aplica tasa oficial suministrada por el Banco Central de Venezuela (BCV) a la fecha de pago de conformidad con lo previsto en los artículos 8 y 128 del Convenio Cambiario N° 1. @endif Por favor notifique su transferencia o pago a través del sistema web cargando su referencia o enviando soporte a <strong>{{ strtolower($condominio->email ?? 'administracion@condominio.com') }}</strong>. La morosidad mayor a tres (3) cuotas continuas dará inicio al cobro de recargos e intereses de conformidad con el documento de condominio.
     </div>
 
+    <!-- Sello Criptográfico Digital y Validación Pública QR (Fase 3.1) -->
+    @if(!empty($hashSha256))
+        <div style="margin-top: 4px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 3px; padding: 3px 5px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    @if(!empty($qrCodeBase64))
+                        <td style="width: 48px; vertical-align: middle; text-align: center; padding-right: 5px;">
+                            <img src="{{ $qrCodeBase64 }}" style="width: 44px; height: 44px; border-radius: 2px; border: 1px solid #cbd5e1;" alt="QR Validación">
+                        </td>
+                    @endif
+                    <td style="vertical-align: middle; font-size: 6.8px; color: #334155; line-height: 1.25;">
+                        <div style="font-weight: 800; color: #0f172a; text-transform: uppercase; font-size: 7.2px; letter-spacing: 0.3px;">
+                            🛡️ CERTIFICACIÓN DIGITAL Y SELLO CRIPTOGRÁFICO DE AUTENTICIDAD
+                        </div>
+                        <div>
+                            Documento sellado digitalmente por <strong>AZPRO Condominio</strong>. Escanee el código QR para verificar la integridad e inalterabilidad de este aviso de cobro en tiempo real.
+                        </div>
+                        <div style="font-family: monospace; font-size: 6.5px; color: #0369a1; word-break: break-all; margin-top: 1px;">
+                            <strong>HASH SHA-256:</strong> {{ $hashSha256 }}
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    @endif
+
     <!-- 6. Footer de Marketing e Identidad Fijo al Final de la Hoja -->
     <footer>
         <div style="font-size: 7.5px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px; text-transform: uppercase;">

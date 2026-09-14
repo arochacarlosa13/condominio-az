@@ -84,6 +84,7 @@
           <v-list-item prepend-icon="mdi-menu" title="Menús Dinámicos" to="/seguridad/menus" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-bullhorn-outline" title="Landing Page PWA" to="/configuracion/landing" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-history" title="Auditoría Global" to="/auditoria" rounded="lg" color="primary" @click="onNavClick" />
+          <v-list-item prepend-icon="mdi-vote" title="Asambleas y Votaciones" to="/asambleas" rounded="lg" color="primary" @click="onNavClick" />
         </template>
 
         <!-- Admin Condominio / Supervisor Items -->
@@ -96,6 +97,7 @@
           <v-list-item prepend-icon="mdi-account-group" title="Propietarios" to="/usuarios" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-calculator" title="Contabilidad y Gastos" to="/contabilidad/admin" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-receipt-text" title="Pagos y Recibos" to="/pagos" rounded="lg" color="primary" @click="onNavClick" />
+          <v-list-item prepend-icon="mdi-vote" title="Asambleas y Votaciones" to="/asambleas" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-bank-cog" title="Configuración del Edificio" to="/condominios" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-calendar-multiselect" title="Áreas Comunes" to="/reservas" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-badge-account" title="Control Visitantes" to="/visitantes" rounded="lg" color="primary" @click="onNavClick" />
@@ -111,6 +113,7 @@
           </v-list-subheader>
           <v-list-item prepend-icon="mdi-view-dashboard" title="Mi Resumen" to="/dashboard/owner" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-credit-card-outline" title="Mis Facturas y Pagos" to="/pagos" rounded="lg" color="primary" @click="onNavClick" />
+          <v-list-item prepend-icon="mdi-vote-outline" title="Votaciones y Asambleas" to="/asambleas" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-calendar-check" title="Reservar Áreas" to="/reservas" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-alert-circle-outline" title="Reportar Incidencia" to="/incidencias" rounded="lg" color="primary" @click="onNavClick" />
           <v-list-item prepend-icon="mdi-bullhorn-outline" title="Cartelera" to="/comunicados" rounded="lg" color="primary" @click="onNavClick" />
@@ -215,6 +218,21 @@
         >
           BCV: Bs. {{ Number(authStore.tasaCambioCentral || authStore.tasaCambio || 36.50).toFixed(2) }}
         </v-chip>
+
+        <!-- Guided Tour Action Button (Fase 2.3) -->
+        <v-btn
+          v-if="!authStore.isPropietario"
+          size="small"
+          variant="tonal"
+          color="indigo-darken-1"
+          prepend-icon="mdi-compass-outline"
+          class="font-weight-bold text-capitalize"
+          rounded="pill"
+          title="Tour Interactivo Guiado de la Plataforma"
+          @click="openTourDialog"
+        >
+          Tour Guiado
+        </v-btn>
 
         <!-- Currency Toggle Button -->
         <v-btn
@@ -605,6 +623,9 @@
         <v-btn variant="text" @click="authStore.snackbar.show = false">Cerrar</v-btn>
       </template>
     </v-snackbar>
+
+    <!-- Modal de Tour Guiado de Bienvenida (Fase 2.3) -->
+    <GuidedTourDialog ref="tourDialogRef" />
   </div>
 </template>
 
@@ -614,10 +635,16 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { useAuthStore } from '../store/auth';
 import { useTheme } from '../composables/useTheme';
+import GuidedTourDialog from '../components/GuidedTourDialog.vue';
 
 const drawer = ref(window.innerWidth >= 960);
 const windowWidth = ref(window.innerWidth);
 const isMobile = computed(() => windowWidth.value < 960);
+const tourDialogRef = ref(null);
+
+const openTourDialog = () => {
+    tourDialogRef.value?.openTour();
+};
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -755,6 +782,12 @@ onMounted(async () => {
     }
     await authStore.fetchTasaCentral();
     await checkSubscription();
+
+    if (!localStorage.getItem('azpro_tour_completed') && (authStore.isAdmin || authStore.isMaster)) {
+        setTimeout(() => {
+            tourDialogRef.value?.openTour();
+        }, 1200);
+    }
 });
 
 onUnmounted(() => {

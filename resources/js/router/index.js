@@ -147,6 +147,12 @@ const routes = [
         meta: { requiresAuth: true, roles: ['master', 'Super Admin'] },
     },
     {
+        path: '/asambleas',
+        name: 'AsambleasList',
+        component: () => import('../views/Asambleas/AsambleasList.vue'),
+        meta: { requiresAuth: true },
+    },
+    {
         path: '/:pathMatch(.*)*',
         redirect: '/',
     },

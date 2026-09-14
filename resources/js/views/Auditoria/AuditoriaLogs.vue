@@ -6,9 +6,21 @@
         <h1 class="text-h5 font-weight-bold text-slate-900">Bitácora de Auditoría del Sistema</h1>
         <p class="text-caption text-slate-500">Trazabilidad completa de acciones, cambios de datos, inicios de sesión e IPs de acceso</p>
       </div>
-      <v-btn color="primary" prepend-icon="mdi-refresh" variant="tonal" @click="fetchLogs">
-        Actualizar Bitácora
-      </v-btn>
+      <div class="d-flex align-center">
+        <v-btn
+          color="success"
+          variant="flat"
+          class="font-weight-bold mr-3"
+          prepend-icon="mdi-cloud-download"
+          :loading="descargandoBackup"
+          @click="descargarBackup"
+        >
+          Descargar Backup (1-Clic)
+        </v-btn>
+        <v-btn color="primary" prepend-icon="mdi-refresh" variant="tonal" @click="fetchLogs">
+          Actualizar Bitácora
+        </v-btn>
+      </div>
     </div>
 
     <!-- Logs Table with DataTable controls -->
@@ -169,6 +181,31 @@ const fetchLogs = async () => {
 const showData = (log) => {
     selectedLog.value = log;
     dialog.value = true;
+};
+
+const descargandoBackup = ref(false);
+
+const descargarBackup = async () => {
+    descargandoBackup.value = true;
+    try {
+        const response = await axios.get('/auditoria/backup/descargar', {
+            responseType: 'blob',
+        });
+        const blob = new Blob([response.data], { type: 'application/octet-stream' });
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        const fechaStr = new Date().toISOString().slice(0, 10);
+        link.download = `backup_azpro_${fechaStr}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(link.href);
+        authStore.notify('Copia de seguridad descargada exitosamente', 'success');
+    } catch (e) {
+        authStore.notify('Error al generar o descargar la copia de seguridad', 'error');
+    } finally {
+        descargandoBackup.value = false;
+    }
 };
 
 onMounted(fetchLogs);

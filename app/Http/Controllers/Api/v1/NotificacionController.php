@@ -55,4 +55,17 @@ class NotificacionController extends BaseController
 
         return $this->respuestaExitosa(['enviados' => $count], "Se han enviado {$count} recordatorios de cobro vía WhatsApp.");
     }
+
+    /**
+     * Ejecuta el ciclo inteligente de cobranza preventiva (Fase 4.1).
+     */
+    public function ejecutarCobranzaPreventiva(Request $request)
+    {
+        $condominioId = $this->obtenerCondominioActual();
+        \Illuminate\Support\Facades\Artisan::call('cobranza:preventiva', [
+            '--condominio_id' => $condominioId,
+        ]);
+
+        return $this->respuestaExitosa(null, 'Ciclo de cobranza preventiva inteligente ejecutado exitosamente.');
+    }
 }

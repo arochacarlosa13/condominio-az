@@ -10,6 +10,7 @@ use App\Models\Apartamento;
 use App\Models\CreditNote;
 use App\Models\NotificacionHistorial;
 use App\Models\AuditLog;
+use App\Services\ConciliacionBancariaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -637,6 +638,96 @@ class PaymentController extends BaseController
         }
 
         return $this->respuestaExitosa(null, 'Registro de pago eliminado y saldos recalculados.');
+    }
+
+    /**
+     * Analiza el archivo de extracto bancario y calcula el matching con los pagos pendientes
+     */
+    public function analizarExtracto(Request $request, ConciliacionBancariaService $service)
+    {
+        $request->validate([
+            'archivo' => 'required|file|max:10240', // Hasta 10MB
+        ]);
+
+        $condominioId = $this->obtenerCondominioActual();
+        if (!$condominioId) {
+            return $this->respuestaError('Debe seleccionar un condominio para conciliar extractos.', 422);
+        }
+
+        $condominio = Condominio::findOrFail($condominioId);
+        $tasa = (float)($condominio->tasa_cambio ?? 36.50);
+
+        try {
+            $archivo = $request->file('archivo');
+            $rutaTemp = $archivo->getRealPath();
+            $resultado = $service->procesarExtracto($rutaTemp, $condominioId, $tasa);
+
+            AuditLog::create([
+                'user_id' => auth()->id() ?? 1,
+                'accion' => 'analisis_conciliacion_bancaria',
+                'modulo' => 'pagos',
+                'detalle' => "Análisis de extracto bancario '{$archivo->getClientOriginalName()}': {$resultado['coincidencias_exactas']} coincidencias exactas, {$resultado['coincidencias_parciales']} parciales.",
+                'ip_address' => $request->ip() ?? '127.0.0.1',
+            ]);
+
+            return $this->respuestaExitosa($resultado, 'Extracto bancario analizado exitosamente.');
+        } catch (\Throwable $e) {
+            return $this->respuestaError('Error al procesar el extracto bancario: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Aprobación masiva de pagos conciliados en lote
+     */
+    public function aprobarLoteConciliado(Request $request)
+    {
+        $request->validate([
+            'payment_ids' => 'required|array|min:1',
+            'payment_ids.*' => 'exists:payments,id',
+        ]);
+
+        $user = auth()->user();
+        if (!$user->esMaster() && !$user->esAdmin() && !$user->esSupervisor()) {
+            return $this->respuestaError('No tiene privilegios para autorizar pagos en lote.', 403);
+        }
+
+        $paymentIds = $request->payment_ids;
+        $aprobados = 0;
+        $errores = [];
+        $notasCreditoGeneradas = 0;
+
+        foreach ($paymentIds as $pid) {
+            $payment = Payment::find($pid);
+            if (!$payment || $payment->estado === 'aprobado') {
+                continue;
+            }
+
+            try {
+                // Invocar la aprobación individual existente
+                $res = $this->aprobar($request, $payment);
+                $aprobados++;
+            } catch (\Throwable $e) {
+                $errores[] = "Pago #{$pid}: " . $e->getMessage();
+            }
+        }
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'accion' => 'conciliacion_masiva_aprobada',
+            'modulo' => 'pagos',
+            'detalle' => "Aprobación masiva en lote: {$aprobados} pagos verificados y aprobados mediante conciliación bancaria inteligente.",
+            'ip_address' => $request->ip() ?? '127.0.0.1',
+        ]);
+
+        $mensaje = "Se han aprobado exitosamente {$aprobados} pagos conciliados.";
+        if (!empty($errores)) {
+            $mensaje .= " Hubo inconvenientes con: " . implode(', ', $errores);
+        }
+
+        return $this->respuestaExitosa([
+            'total_aprobados' => $aprobados,
+            'errores' => $errores,
+        ], $mensaje);
     }
 }
 

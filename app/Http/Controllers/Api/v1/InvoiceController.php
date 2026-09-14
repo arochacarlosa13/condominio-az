@@ -222,12 +222,15 @@ class InvoiceController extends BaseController
         $numReciboGeneral = Invoice::generarNumeroReciboGeneral($condominioId, $fechaEmision, $request->periodo);
         $creditosAplicadosResumen = [];
 
+        // Total presupuestado consolidado de gastos del edificio
+        $totalPresupuestoGastosUsd = !empty($conceptosVigentes) ? (float)array_sum(array_column($conceptosVigentes, 'monto')) : 0.0;
+        $fondoMesTotal = round($totalPresupuestoGastosUsd * ($fondoReservaPorcentaje / 100), 2);
+
+        // PASO 1: Pre-cálculo de cuotas de cada apartamento
+        $calculosAptos = [];
         foreach ($apartamentos as $apto) {
             $alicuota1Percent = $apto->getAlicuota(1);
-
-            // Desglosar cada gasto individualmente calculando su alícuota correspondiente
             $detallesGastosSnapshot = [];
-            $totalEdificioUsd = 0;
             $totalAlicuotaUsd = 0;
 
             if (!empty($conceptosVigentes)) {
@@ -236,7 +239,6 @@ class InvoiceController extends BaseController
                     $aliId = $g['condominio_alicuota_id'] ?? $g['ali_id'] ?? null;
                     $aliGroup = strval($g['ali'] ?? '1');
 
-                    // Buscar definición de la alícuota en el catálogo (por ID o por Número)
                     $aliDef = null;
                     if ($aliId) {
                         $aliDef = $catalogoAlicuotas->firstWhere('id', (int)$aliId);
@@ -263,7 +265,6 @@ class InvoiceController extends BaseController
                     }
 
                     $montoAlicu = round($montoItem * $factorAplicado, 2);
-                    $totalEdificioUsd += $montoItem;
                     $totalAlicuotaUsd += $montoAlicu;
 
                     $detallesGastosSnapshot[] = [
@@ -278,10 +279,7 @@ class InvoiceController extends BaseController
                 }
             }
 
-            // Fondo de reserva del mes (calculado sobre la alícuota general base)
-            $fondoMesTotal = round($totalEdificioUsd * ($fondoReservaPorcentaje / 100), 2);
             $fondoMesAlicuota = round($fondoMesTotal * ($alicuota1Percent / 100), 2);
-
             $fondosSnapshot = [
                 'nombre' => 'FONDO DE RESERVA',
                 'acumulado' => $fondoReservaAcumulado,
@@ -289,7 +287,54 @@ class InvoiceController extends BaseController
                 'monto_alicuota' => $fondoMesAlicuota,
             ];
 
-            $totalPagarUsd = $totalAlicuotaUsd + $fondoMesAlicuota;
+            $calculosAptos[] = [
+                'apto' => $apto,
+                'totalAlicuotaUsd' => $totalAlicuotaUsd,
+                'detallesGastosSnapshot' => $detallesGastosSnapshot,
+                'fondoMesAlicuota' => $fondoMesAlicuota,
+                'fondosSnapshot' => $fondosSnapshot,
+            ];
+        }
+
+        // PASO 2: Mecanismo de compensación matemática automática al céntimo (+- 0.01 / 0.02)
+        if (!empty($calculosAptos) && $totalPresupuestoGastosUsd > 0) {
+            $sumCuotasDistribuidas = round(array_sum(array_column($calculosAptos, 'totalAlicuotaUsd')), 2);
+            $diffCentimos = round($totalPresupuestoGastosUsd - $sumCuotasDistribuidas, 2);
+
+            if (abs($diffCentimos) > 0 && abs($diffCentimos) <= 0.10) {
+                $lastIdx = count($calculosAptos) - 1;
+                $calculosAptos[$lastIdx]['totalAlicuotaUsd'] = round($calculosAptos[$lastIdx]['totalAlicuotaUsd'] + $diffCentimos, 2);
+                $calculosAptos[$lastIdx]['detallesGastosSnapshot'][] = [
+                    'condominio_alicuota_id' => null,
+                    'ali' => 'COMP',
+                    'alicuota_nombre' => 'Compensación de Redondeo',
+                    'concepto' => 'Ajuste matemático de redondeo al céntimo (cuadre 100.0000%)',
+                    'monto' => $diffCentimos,
+                    'alicu' => $diffCentimos,
+                    'alicuota_porcentaje' => 100.00,
+                    'es_ajuste_redondeo' => true,
+                ];
+            }
+
+            $sumFondosDistribuidos = round(array_sum(array_column($calculosAptos, 'fondoMesAlicuota')), 2);
+            $diffFondos = round($fondoMesTotal - $sumFondosDistribuidos, 2);
+            if (abs($diffFondos) > 0 && abs($diffFondos) <= 0.10) {
+                $lastIdx = count($calculosAptos) - 1;
+                $calculosAptos[$lastIdx]['fondoMesAlicuota'] = round($calculosAptos[$lastIdx]['fondoMesAlicuota'] + $diffFondos, 2);
+                $calculosAptos[$lastIdx]['fondosSnapshot']['monto_alicuota'] = $calculosAptos[$lastIdx]['fondoMesAlicuota'];
+                $calculosAptos[$lastIdx]['fondosSnapshot']['ajuste_redondeo_fondo'] = $diffFondos;
+            }
+        }
+
+        // PASO 3: Guardar recibos definitivos con exactitud milimétrica
+        foreach ($calculosAptos as $calc) {
+            $apto = $calc['apto'];
+            $totalAlicuotaUsd = $calc['totalAlicuotaUsd'];
+            $detallesGastosSnapshot = $calc['detallesGastosSnapshot'];
+            $fondoMesAlicuota = $calc['fondoMesAlicuota'];
+            $fondosSnapshot = $calc['fondosSnapshot'];
+
+            $totalPagarUsd = round($totalAlicuotaUsd + $fondoMesAlicuota, 2);
             $totalPagarBs = round($totalPagarUsd * $tasaBcv, 2);
 
             $invExistente = Invoice::withoutGlobalScopes()

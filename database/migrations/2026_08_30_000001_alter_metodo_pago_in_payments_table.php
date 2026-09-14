@@ -13,7 +13,9 @@ return new class extends Migration
     public function up(): void
     {
         // Drop Postgres check constraint if exists
-        DB::statement('ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_metodo_pago_check;');
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_metodo_pago_check;');
+        }
 
         // Change column to string to allow all modern payment methods (efectivo_usd, efectivo_ves, zelle, pago_movil, etc.)
         Schema::table('payments', function (Blueprint $table) {

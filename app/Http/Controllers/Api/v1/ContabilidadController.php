@@ -138,4 +138,115 @@ class ContabilidadController extends BaseController
             'total_apartamentos_morosos' => $invoices->where('es_moroso', true)->pluck('apartamento_id')->unique()->count(),
         ]);
     }
+
+    /**
+     * Flujo de caja en tiempo real y tesorería bancaria en vivo.
+     * Saldo Bancario Disponible = Total Cobrado en Banco - Facturas de Contratistas Pagadas
+     */
+    public function flujoCaja(Request $request)
+    {
+        $condominioId = $this->obtenerCondominioActual();
+        $condominio = Condominio::find($condominioId) ?? Condominio::first();
+        $tasa = (float)($condominio?->tasa_cambio ?? 36.50);
+
+        // 1. Cobranza total en banco
+        $totalCobradoBs = (float) Payment::where('condominio_id', $condominioId)
+            ->where('estado', 'aprobado')
+            ->sum('monto');
+
+        // 2. Facturas de contratistas y egresos efectivamente pagados
+        $totalGastosPagadosBs = (float) Expense::where('condominio_id', $condominioId)
+            ->where('estado_pago', 'pagado')
+            ->sum('monto_bs');
+
+        $saldoDisponibleBs = $totalCobradoBs - $totalGastosPagadosBs;
+
+        // 3. Desglose en vivo por cuenta bancaria
+        $cuentasBancarias = \App\Models\CondominioCuentaBancaria::where('condominio_id', $condominioId)
+            ->where('activo', true)
+            ->get()
+            ->map(function ($cuenta) use ($condominioId, $tasa) {
+                $ingresosCuentaBs = (float) Payment::where('condominio_id', $condominioId)
+                    ->where('cuenta_bancaria_id', $cuenta->id)
+                    ->where('estado', 'aprobado')
+                    ->sum('monto');
+
+                if ($ingresosCuentaBs == 0 && !empty($cuenta->banco)) {
+                    $ingresosCuentaBs = (float) Payment::where('condominio_id', $condominioId)
+                        ->whereNull('cuenta_bancaria_id')
+                        ->where('banco', $cuenta->banco)
+                        ->where('estado', 'aprobado')
+                        ->sum('monto');
+                }
+
+                $egresosCuentaBs = 0.0;
+                if (\Illuminate\Support\Facades\Schema::hasColumn('expenses', 'cuenta_bancaria_id')) {
+                    $egresosCuentaBs = (float) Expense::where('condominio_id', $condominioId)
+                        ->where('cuenta_bancaria_id', $cuenta->id)
+                        ->where('estado_pago', 'pagado')
+                        ->sum('monto_bs');
+                }
+
+                $saldoCuentaBs = $ingresosCuentaBs - $egresosCuentaBs;
+
+                return [
+                    'id' => $cuenta->id,
+                    'banco' => $cuenta->banco,
+                    'tipo_cuenta' => $cuenta->tipo_cuenta,
+                    'numero_cuenta' => $cuenta->numero_cuenta,
+                    'titular' => $cuenta->titular,
+                    'ingresos_bs' => round($ingresosCuentaBs, 2),
+                    'egresos_bs' => round($egresosCuentaBs, 2),
+                    'saldo_disponible_bs' => round($saldoCuentaBs, 2),
+                    'saldo_disponible_usd' => $tasa > 0 ? round($saldoCuentaBs / $tasa, 2) : 0,
+                ];
+            });
+
+        // 4. Serie temporal de los últimos 6 meses (Ingresos reales vs Egresos reales)
+        $historicoMeses = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $dt = Carbon::now()->subMonths($i);
+            $mesNum = $dt->month;
+            $anioNum = $dt->year;
+            $mesEtiqueta = $dt->translatedFormat('M Y');
+
+            $ingresosMes = (float) Payment::where('condominio_id', $condominioId)
+                ->where('estado', 'aprobado')
+                ->whereMonth('fecha_pago', $mesNum)
+                ->whereYear('fecha_pago', $anioNum)
+                ->sum('monto');
+
+            $egresosMes = (float) Expense::where('condominio_id', $condominioId)
+                ->where('estado_pago', 'pagado')
+                ->whereMonth('fecha_gasto', $mesNum)
+                ->whereYear('fecha_gasto', $anioNum)
+                ->sum('monto_bs');
+
+            $flujoNeto = $ingresosMes - $egresosMes;
+
+            $historicoMeses[] = [
+                'mes' => ucfirst($mesEtiqueta),
+                'ingresos_bs' => round($ingresosMes, 2),
+                'ingresos_usd' => $tasa > 0 ? round($ingresosMes / $tasa, 2) : 0,
+                'egresos_bs' => round($egresosMes, 2),
+                'egresos_usd' => $tasa > 0 ? round($egresosMes / $tasa, 2) : 0,
+                'flujo_neto_bs' => round($flujoNeto, 2),
+                'flujo_neto_usd' => $tasa > 0 ? round($flujoNeto / $tasa, 2) : 0,
+            ];
+        }
+
+        return $this->respuestaExitosa([
+            'resumen' => [
+                'total_cobrado_banco_bs' => round($totalCobradoBs, 2),
+                'total_cobrado_banco_usd' => $tasa > 0 ? round($totalCobradoBs / $tasa, 2) : 0,
+                'total_gastos_pagados_bs' => round($totalGastosPagadosBs, 2),
+                'total_gastos_pagados_usd' => $tasa > 0 ? round($totalGastosPagadosBs / $tasa, 2) : 0,
+                'saldo_bancario_disponible_bs' => round($saldoDisponibleBs, 2),
+                'saldo_bancario_disponible_usd' => $tasa > 0 ? round($saldoDisponibleBs / $tasa, 2) : 0,
+                'tasa_cambio' => $tasa,
+            ],
+            'cuentas_bancarias' => $cuentasBancarias,
+            'historico_flujo' => $historicoMeses,
+        ]);
+    }
 }

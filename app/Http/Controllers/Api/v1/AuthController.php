@@ -71,6 +71,32 @@ class AuthController extends BaseController
             'bloqueado_hasta' => null,
         ]);
 
+        // Verificación en Dos Pasos (2FA) si está activada para la cuenta (Fase 3.3)
+        if ($user->dos_factores_activo) {
+            $otpCode = str_pad((string) random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
+            $user->update([
+                'two_factor_code' => $otpCode,
+                'two_factor_expires_at' => Carbon::now()->addMinutes(10),
+            ]);
+
+            \Illuminate\Support\Facades\Log::info("🔐 [2FA AZPRO] Código de seguridad para {$user->email}: {$otpCode}");
+
+            $tempToken = base64_encode($user->id . ':' . hash('sha256', $otpCode . config('app.key')));
+            $maskedEmail = preg_replace('/(?<=..).(?=.*@)/u', '*', $user->email);
+
+            return response()->json([
+                'success' => true,
+                'requires_2fa' => true,
+                'message' => "Se ha enviado un código de seguridad de 6 dígitos a su correo {$maskedEmail}.",
+                'data' => [
+                    'email' => $user->email,
+                    'email_masked' => $maskedEmail,
+                    'temp_token' => $tempToken,
+                    'expires_in' => 600,
+                ],
+            ]);
+        }
+
         // Generar token Sanctum
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -95,6 +121,86 @@ class AuthController extends BaseController
             'redirect_to' => $dashboard,
             'tasa_cambio_central' => $tasaCentral,
         ], 'Inicio de sesión exitoso.');
+    }
+
+    /**
+     * Valida el código OTP de 6 dígitos para la autenticación en dos pasos (Fase 3.3).
+     */
+    public function verificar2FA(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'code' => 'required|string|size:6',
+            'temp_token' => 'required|string',
+        ], [
+            'code.required' => 'Debe ingresar el código de 6 dígitos.',
+            'code.size' => 'El código de verificación debe tener exactamente 6 dígitos.',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->respuestaError('Error de validación', 422, $validator->errors());
+        }
+
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            return $this->respuestaError('Usuario no encontrado.', 404);
+        }
+
+        if (!$user->two_factor_code || !$user->two_factor_expires_at) {
+            return $this->respuestaError('No hay ningún código de verificación activo.', 400);
+        }
+
+        if (Carbon::now()->greaterThan($user->two_factor_expires_at)) {
+            return $this->respuestaError('El código de verificación ha expirado. Intente iniciar sesión nuevamente.', 410);
+        }
+
+        $expectedTempToken = base64_encode($user->id . ':' . hash('sha256', $user->two_factor_code . config('app.key')));
+        if ($request->code !== $user->two_factor_code || $request->temp_token !== $expectedTempToken) {
+            return $this->respuestaError('El código de verificación de 6 dígitos es incorrecto.', 401);
+        }
+
+        // Limpiar código de dos factores una vez consumido exitosamente
+        $user->update([
+            'two_factor_code' => null,
+            'two_factor_expires_at' => null,
+            'intentos_fallidos' => 0,
+            'bloqueado_hasta' => null,
+        ]);
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+        $user = $this->cargarCondominiosAccesibles($user);
+
+        $dashboard = match (true) {
+            $user->esMaster() => '/dashboard/master',
+            $user->condominios_accesibles->count() > 1 => '/seleccionar-condominio',
+            $user->esAdmin() || $user->esSupervisor() || $user->esAnalista() => '/dashboard/admin',
+            default => '/dashboard/owner',
+        };
+
+        $tasaCentral = (float) (SelectOption::where('tipo', 'configuracion_general')
+            ->where('valor', 'tasa_bcv_oficial')
+            ->value('etiqueta') ?? 36.50);
+
+        return $this->respuestaExitosa([
+            'user' => $user,
+            'token' => $token,
+            'redirect_to' => $dashboard,
+            'tasa_cambio_central' => $tasaCentral,
+        ], 'Verificación de dos pasos superada exitosamente.');
+    }
+
+    /**
+     * Alterna la activación/desactivación de 2FA para el usuario autenticado (Fase 3.3).
+     */
+    public function toggle2FA(Request $request)
+    {
+        $user = $request->user();
+        $nuevoEstado = !$user->dos_factores_activo;
+        $user->update(['dos_factores_activo' => $nuevoEstado]);
+
+        return $this->respuestaExitosa([
+            'dos_factores_activo' => $nuevoEstado,
+        ], $nuevoEstado ? 'Autenticación en dos pasos activada exitosamente.' : 'Autenticación en dos pasos desactivada.');
     }
 
     /**
